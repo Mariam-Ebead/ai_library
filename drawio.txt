@@ -1,0 +1,61 @@
+===================== ARCHITECTURE FLOW
+User Question
+     │
+     ▼
+[ Auth & Role Verification ]
+     │
+     ├── If Role == 'admin':
+     │     Gather: System stats, total users, book inventory, category counts
+     │
+     └── If Role == 'user':
+           Check: Is question asking for admin-only stats?
+             ├── Yes ──> Immediate 403 / Rejection response (No AI call)
+             └── No  ──> Gather: Available books, categories, user's profile/interests
+     │
+     ▼
+[ Build Prompt with Filtered Context ]
+     │
+     ▼
+[ Call LLM (OpenAI / Gemini) via Laravel HTTP ]
+     │
+     ▼
+Send Sanitized Answer to Client
+
+===================== SOME ACCOUNTS
+ADMIN        admin@library.com	password123	إدارة النظام	إمكانية إدارة كل الكتب والمستخدمين وعرض إحصائيات النظام في الشات.
+AI SARAH     sara@library.com  	password123	AI, Deep Learning, Python	كتب Hands-On Machine Learning و Deep Learning ستظهر بأعلى نسبة مطابقة (فوق 85%).
+OMAR SEC     omar@library.com	password123	Hacking, Cryptography, Networks	كتب Web Application Hacker و Practical Malware ستتصدر بنسبة مطابقة عالية جداً.
+KARIM FE     karim@library.com	password123	React, TypeScript, UI	كتب Full-Stack React و Clean Code ستكون في المقدمة.
+USER         user@library.com	password123	PHP, Laravel, Backend	كتاب Laravel Up & Running سيحصل على أعلى Match.
+
+
+===================== BACKEND
+# 1. تنزيل حزم الـ PHP
+composer install
+
+# 2. إنشاء ملف الإعدادات البيئية .env
+cp .env.example .env
+# (على ويندوز لو الأمر منفعش: copy .env.example .env)
+
+# 3. توليد مفتاح التطبيق السري
+php artisan key:generate
+
+# 4. فتح ملف .env وضبط:
+# - اسم قاعدة البيانات: DB_DATABASE=ai_library
+# - مفتاح الذكاء الاصطناعي: OPENAI_API_KEY=sk-proj-...
+
+# 5. بناء الجداول وحقن البيانات التجريبية
+php artisan migrate:fresh --seed
+
+# 6. عمل رابط مجلد الصور العام (مهم جداً للصور المرفوعة)
+php artisan storage:link
+
+# 7. تشغيل سيرفر الـ API
+php artisan serve
+
+===================== FRONTEND
+# 1. تنزيل حزم الـ Javascript
+npm install
+
+# 2. تشغيل سيرفر التطوير
+npm run dev
