@@ -22,7 +22,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/categories/{id}', [CategoryController::class, 'show']);
     Route::get('/books', [BookController::class, 'index']);
     Route::get('/books/{id}', [BookController::class, 'show']);
-
+    Route::post('/chat', [ChatController::class, 'ask']);   
 
     Route::middleware('role:admin')->group(function () {
 
@@ -39,6 +39,5 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('users', UserController::class);
     });
 
-    Route::post('/chat', [ChatController::class, 'ask']);
     Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
 });

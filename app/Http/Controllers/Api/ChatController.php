@@ -3,19 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\ChatContextService;
+use App\Models\Book;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
 class ChatController extends Controller
 {
-    protected ChatContextService $contextService;
-
-    public function __construct(ChatContextService $contextService)
-    {
-        $this->contextService = $contextService;
-    }
-
     public function ask(Request $request)
     {
         $request->validate([
@@ -23,88 +17,85 @@ class ChatController extends Controller
         ]);
 
         $user = $request->user();
-        $message = trim($request->message);
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
 
-        if (! $user->hasRole('admin')) {
-            if ($this->containsForbiddenAdminKeywords($message)) {
-                return response()->json([
-                    'reply' => 'Access Denied: You do not have permission to view library administrative statistics or user data.',
-                ], 403);
+        $userMessage = strtolower($request->input('message'));
+        $isAdmin = $user->hasRole('admin');
+
+        // الكلمات المفتاحية الإدارية الحساسة
+        $adminKeywords = ['users', 'registered', 'how many users', 'total users', 'stock', 'inventory'];
+        $asksForAdminStats = false;
+        foreach ($adminKeywords as $keyword) {
+            if (str_contains($userMessage, $keyword)) {
+                $asksForAdminStats = true;
+                break;
             }
         }
 
-        $contextData = $this->contextService->buildContext($user);
+        // إذا كان السؤال إدارياً والسائل ليس أدمن -> رفض الطلب فوراً (Zero Leakage)
+        if ($asksForAdminStats && !$isAdmin) {
+            return response()->json([
+                'message' => 'Access Denied: You do not have administrator permissions to view system statistics.'
+            ], 403);
+        }
 
-        $systemPrompt = $this->buildSystemPrompt($user->hasRole('admin'), $contextData);
+        // تحضير سياق البيانات بناءً على الرتبة
+        $systemContext = "You are a helpful and professional AI assistant for a digital library system. Answer questions concisely.\n";
+
+        if ($isAdmin) {
+            $totalUsers = User::count();
+            $totalBooks = Book::count();
+            $outOfStock = Book::where('available_copies', 0)->count();
+            $systemContext .= "ADMIN CONTEXT: Total Registered Users = {$totalUsers}, Total Books = {$totalBooks}, Out of Stock Books = {$outOfStock}.\n";
+        }
+
+        // إضافة سياق عينة من الكتب المتاحة
+        $booksSample = Book::with('category')->limit(10)->get()->map(function ($b) {
+            return "Title: {$b->title}, Author: {$b->author}, Category: " . ($b->category->name ?? 'General') . ", Copies: {$b->available_copies}";
+        })->implode("\n");
+
+        $systemContext .= "AVAILABLE BOOKS IN CATALOG:\n" . $booksSample;
+
+        // الاتصال بـ OpenAI
+        $apiKey = config('services.openai.key') ?? env('OPENAI_API_KEY');
+        if (!$apiKey) {
+            return response()->json([
+                'message' => 'OpenAI API key is missing in .env file.'
+            ], 500);
+        }
 
         try {
-            $response = Http::withToken(config('services.openai.key'))
-                ->timeout(30)
-                ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => 'gpt-4o-mini',
-                    'temperature' => 0.3, 
-                    'messages' => [
-                        ['role' => 'system', 'content' => $systemPrompt],
-                        ['role' => 'user', 'content' => $message],
-                    ],
-                ]);
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $apiKey,
+                'Content-Type' => 'application/json',
+            ])->timeout(30)->post('https://api.openai.com/v1/chat/completions', [
+                'model' => 'gpt-4o-mini',
+                'messages' => [
+                    ['role' => 'system', 'content' => $systemContext],
+                    ['role' => 'user', 'content' => $request->input('message')],
+                ],
+                'temperature' => 0.7,
+                'max_tokens' => 300,
+            ]);
 
             if ($response->failed()) {
                 return response()->json([
-                    'error' => 'AI Service error: ' . $response->body()
-                ], 502);
+                    'message' => 'OpenAI Error: ' . ($response->json()['error']['message'] ?? 'Service unavailable')
+                ], 500);
             }
 
-            $aiReply = $response->json('choices.0.message.content');
+            $aiReply = $response->json()['choices'][0]['message']['content'];
 
             return response()->json([
                 'reply' => $aiReply,
-                'role' => $user->getRoleNames()->first(),
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
-                'error' => 'Failed to connect to AI service: ' . $e->getMessage(),
+                'message' => 'Server Error: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-    protected function containsForbiddenAdminKeywords(string $text): bool
-    {
-        $keywords = [
-            'total users', 'registered users', 'all users', 'list of users',
-            'how many users', 'system statistics', 'admin statistics',
-            'عدد المستخدمين', 'كل المستخدمين', 'إحصائيات النظام'
-        ];
-
-        foreach ($keywords as $kw) {
-            if (stripos($text, $kw) !== false) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-
-    protected function buildSystemPrompt(bool $isAdmin, array $context): string
-    {
-        $jsonContext = json_encode($context, JSON_UNESCAPED_UNICODE);
-
-        if ($isAdmin) {
-            return "You are an AI assistant for the Library Management System helping an ADMINISTRATOR.
-            You have full authorization to answer queries about library statistics, book stock, registered user numbers, and categories.
-            Answer based solely on this authorized context:
-            {$jsonContext}
-            Provide concise, accurate, and structured insights.";
-        }
-
-        return "You are a Library Assistant helping a regular LIBRARY USER.
-        Your permissions:
-        1. You can help the user discover books, get book recommendations, compare books, and explain topics based on their profile and available books.
-        2. Strictly forbidden: Do NOT disclose system statistics, registered user counts, internal IDs, or admin operations.
-        3. If the user asks for unauthorized data, politely refuse and state that this requires administrator privileges.
-        Base your responses strictly on this catalog and user profile context:
-        {$jsonContext}";
     }
 }
