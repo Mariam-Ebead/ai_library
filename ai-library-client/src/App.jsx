@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import BookDetails from './pages/BookDetails';
 
 export default function App() {
     return (
@@ -19,6 +20,7 @@ export default function App() {
                     <main className="flex-1">
                         <Routes>
                             <Route path="/" element={<Books />} />
+                            <Route path="/books/:id" element={<BookDetails />} />
                             <Route path="/login" element={<Login />} />
                             <Route path="/register" element={<Register />} />
                             <Route

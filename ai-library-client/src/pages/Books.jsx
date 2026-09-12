@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "../api/axios";
+import { Link } from "react-router-dom";
 
 export default function Books() {
     const [books, setBooks] = useState([]);
@@ -104,12 +105,9 @@ export default function Books() {
                                     <span className="inline-block text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded mb-2">
                                         {book.category?.name}
                                     </span>
-                                    <h3
-                                        className="font-bold text-lg text-gray-900 line-clamp-1 mb-1"
-                                        title={book.title}
-                                    >
+                                    <Link to={`/books/${book.id}`} className="hover:text-indigo-600 transition font-bold text-lg">
                                         {book.title}
-                                    </h3>
+                                    </Link>
                                     <p className="text-xs text-gray-500 mb-3">
                                         By {book.author}
                                     </p>

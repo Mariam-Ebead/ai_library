@@ -75,10 +75,15 @@ class BookController extends Controller
     }
 
     public function show($id)
-    {
-        $book = Book::with('category')->findOrFail($id);
-        return response()->json($book);
+{
+    $book = Book::with('category')->find($id);
+
+    if (!$book) {
+        return response()->json(['message' => 'Book not found'], 404);
     }
+
+    return response()->json($book);
+}
 
     public function update(Request $request, $id)
     {

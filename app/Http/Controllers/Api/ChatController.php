@@ -59,43 +59,76 @@ class ChatController extends Controller
         $systemContext .= "AVAILABLE BOOKS IN CATALOG:\n" . $booksSample;
 
         // الاتصال بـ OpenAI
-        $apiKey = config('services.openai.key') ?? env('OPENAI_API_KEY');
-        if (!$apiKey) {
-            return response()->json([
-                'message' => 'OpenAI API key is missing in .env file.'
-            ], 500);
-        }
+        // $apiKey = config('services.openai.key') ?? env('OPENAI_API_KEY');
+        // if (!$apiKey) {
+        //     return response()->json([
+        //         'message' => 'OpenAI API key is missing in .env file.'
+        //     ], 500);
+        // }
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $apiKey,
-                'Content-Type' => 'application/json',
-            ])->timeout(30)->post('https://api.openai.com/v1/chat/completions', [
-                'model' => 'gpt-4o-mini',
-                'messages' => [
-                    ['role' => 'system', 'content' => $systemContext],
-                    ['role' => 'user', 'content' => $request->input('message')],
-                ],
-                'temperature' => 0.7,
-                'max_tokens' => 300,
-            ]);
+        // try {
+        //     $response = Http::withHeaders([
+        //         'Authorization' => 'Bearer ' . $apiKey,
+        //         'Content-Type' => 'application/json',
+        //     ])->timeout(30)->post('https://api.openai.com/v1/chat/completions', [
+        //         'model' => 'gpt-4o-mini',
+        //         'messages' => [
+        //             ['role' => 'system', 'content' => $systemContext],
+        //             ['role' => 'user', 'content' => $request->input('message')],
+        //         ],
+        //         'temperature' => 0.7,
+        //         'max_tokens' => 300,
+        //     ]);
 
-            if ($response->failed()) {
-                return response()->json([
-                    'message' => 'OpenAI Error: ' . ($response->json()['error']['message'] ?? 'Service unavailable')
-                ], 500);
-            }
+        //     if ($response->failed()) {
+        //         return response()->json([
+        //             'message' => 'OpenAI Error: ' . ($response->json()['error']['message'] ?? 'Service unavailable')
+        //         ], 500);
+        //     }
 
-            $aiReply = $response->json()['choices'][0]['message']['content'];
+        //     $aiReply = $response->json()['choices'][0]['message']['content'];
 
-            return response()->json([
-                'reply' => $aiReply,
-            ]);
+        //     return response()->json([
+        //         'reply' => $aiReply,
+        //     ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Server Error: ' . $e->getMessage()
-            ], 500);
-        }
+        // } catch (\Exception $e) {
+        //     return response()->json([
+        //         'message' => 'Server Error: ' . $e->getMessage()
+        //     ], 500);
+        // }
+        $geminiKey = env('GEMINI_API_KEY');
+
+try {
+    $prompt = $systemContext . "\n\nUser Question: " . $request->input('message');
+
+    $response = Http::timeout(30)->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={$geminiKey}", [
+        'contents' => [
+            [
+                'parts' => [
+                    ['text' => $prompt]
+                ]
+            ]
+        ]
+    ]);
+
+    if ($response->failed()) {
+        return response()->json([
+            'message' => 'AI Error: ' . ($response->json()['error']['message'] ?? 'Service unavailable')
+        ], 500);
     }
+
+    $data = $response->json();
+    $aiReply = $data['candidates'][0]['content']['parts'][0]['text'] ?? 'No response generated.';
+
+    return response()->json([
+        'reply' => $aiReply,
+    ]);
+
+} catch (\Exception $e) {
+    return response()->json([
+        'message' => 'Server Error: ' . $e->getMessage()
+    ], 500);
+}   
+        }  
 }

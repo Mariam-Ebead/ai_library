@@ -39,5 +39,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('users', UserController::class);
     });
 
+    Route::post('/books/{id}/borrow', [App\Http\Controllers\Api\BorrowController::class, 'borrow']);
+    Route::get('/books/{id}/borrow-status', [App\Http\Controllers\Api\BorrowController::class, 'checkStatus']);
+    
     Route::get('/recommendations', [RecommendationController::class, 'getRecommendations']);
 });
