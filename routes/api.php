@@ -27,13 +27,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:admin')->group(function () {
 
     Route::post('/categories', [CategoryController::class, 'store']);
-        Route::put('/categories/{id}', [CategoryController::class, 'update']);
-        Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
+    Route::put('/categories/{id}', [CategoryController::class, 'update']);
+    Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
 
 
-        Route::post('/books', [BookController::class, 'store']);
-        Route::put('/books/{id}', [BookController::class, 'update']);
-        Route::delete('/books/{id}', [BookController::class, 'destroy']);
+    Route::post('/books', [BookController::class, 'store']);
+    Route::put('/books/{id}', [BookController::class, 'update']);
+    Route::delete('/books/{id}', [BookController::class, 'destroy']);
     });
     Route::middleware('role:admin')->group(function () {
         Route::apiResource('users', UserController::class);
